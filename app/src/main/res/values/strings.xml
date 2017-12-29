@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">Wallpaper</string>
+    <string name="title_home">Home</string>
+    <string name="title_settings">Settings</string>
+    <string name="set_wallpaper_button">Set as Wallpaper</string>
+
+    <string-array name="crop_type">
+        <item>Crop to Center</item>
+        <item>Maintain Aspect Ratio</item>
+        <item>Stretch</item>
+    </string-array>
+
+    <string-array name="screen_span">
+        <item>Span One Screen</item>
+        <item>Span All Screens</item>
+    </string-array>
+</resources>
