@@ -1,0 +1,6 @@
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <EditTextPreference
+        android:key="delay"
+        android:title="Change Wallpaper"
+        android:defaultValue="10"/>
+</PreferenceScreen>

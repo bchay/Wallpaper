@@ -3,11 +3,13 @@
 
     <item
         android:id="@+id/navigation_home"
-        android:icon="@drawable/ic_home_black_24dp"
         android:title="@string/title_home" />
 
     <item
         android:id="@+id/navigation_settings"
-        android:title="@string/title_settings"
-        android:icon="@drawable/ic_settings_black_24dp"/>
+        android:title="@string/title_settings"/>
+
+    <item
+        android:id="@+id/navigation_delete"
+        android:title="@string/delete_images" />
 </menu>

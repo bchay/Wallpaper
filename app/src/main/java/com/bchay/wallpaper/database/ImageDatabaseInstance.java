@@ -25,12 +25,8 @@ public class ImageDatabaseInstance {
         return database.imageDao().getAllImages();
     }
 
-    public static List<Image> getImagesByScreenSpan(String screenSpan) {
-        return database.imageDao().getImagesByScreenSpan(screenSpan);
-    }
-
-    public static void deleteImages(Uri... uris) {
-        database.imageDao().deleteImages(uris);
+    public static void deleteImages(Uri uri) {
+        database.imageDao().deleteImages(uri);
     }
 
     public static void updateImageCropType(Uri uri, String cropType) {

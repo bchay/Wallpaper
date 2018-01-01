@@ -2,8 +2,10 @@ package com.bchay.wallpaper;
 
 import android.app.WallpaperManager;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.DisplayMetrics;
@@ -12,6 +14,7 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.Spinner;
+import android.widget.Toast;
 
 import com.bchay.wallpaper.database.Image;
 import com.bchay.wallpaper.database.ImageDatabaseInstance;
@@ -96,24 +99,35 @@ public class ImageSettings extends AppCompatActivity implements AdapterView.OnIt
         new Thread(new Runnable() {
             @Override
             public void run() {
-                //Save designated image information - for display with live wallpaper chooser
-                ImageProcessingUtility.saveImageData(new Image(uri, cropType.getSelectedItem().toString(), screenSpan.getSelectedItem().toString()), getApplicationContext());
-
-                //Start LiveWallpaperService if it has not already been started
-                if(WallpaperManager.getInstance(getApplicationContext()).getWallpaperInfo() == null || !WallpaperManager.getInstance(getApplicationContext()).getWallpaperInfo().getServiceName().equals("om.example.hprobotics.wallpaper.LiveWallpaperService")) {
-                    Intent intent = new Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER);
-                    intent.putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, new ComponentName(getApplicationContext(), LiveWallpaperService.class));
-                    startActivity(intent);
-                }
-
-                //Send broadcast to set wallpaper
-                Intent intent = new Intent();
-                intent.setAction("com.example.hprobotics.wallpaper.SET_WALLPAPER");
-                intent.putExtra("uri", uri);
-                intent.putExtra("cropType", cropType.getSelectedItem().toString());
-                intent.putExtra("screenSpan", screenSpan.getSelectedItem().toString());
-                //LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(intent);
+                setImageAsWallpaper(uri, cropType.getSelectedItem().toString(), screenSpan.getSelectedItem().toString());
             }
         }).start();
+    }
+
+    public void setImageAsWallpaper(Uri uri, String cropType, String screenSpan) {
+        //Save designated image information - for display with live wallpaper chooser
+        ImageProcessingUtility.saveImageData(new Image(uri, cropType, screenSpan), getApplicationContext());
+
+        //Start LiveWallpaperService if it has not already been started
+        if(WallpaperManager.getInstance(getApplicationContext()).getWallpaperInfo() == null || !WallpaperManager.getInstance(getApplicationContext()).getWallpaperInfo().getServiceName().equals("com.bchay.wallpaper.LiveWallpaperService")) {
+            Intent intent = new Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER);
+            intent.putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, new ComponentName(getApplicationContext(), LiveWallpaperService.class));
+            startActivity(intent);
+        }
+
+        //Send broadcast to set wallpaper
+        Intent intent = new Intent();
+        intent.setAction("com.bchay.wallpaper.SET_WALLPAPER");
+        intent.putExtra("uri", uri);
+        intent.putExtra("cropType", cropType);
+        intent.putExtra("screenSpan", screenSpan);
+        LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(intent);
+
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(getApplicationContext(), "Wallpaper Set", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 }

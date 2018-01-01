@@ -1,64 +1,177 @@
 package com.bchay.wallpaper;
 
 import android.content.Intent;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 import android.support.design.widget.BottomNavigationView;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
+import android.view.ActionMode;
+import android.view.ContextMenu;
+import android.view.Menu;
+import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.AbsListView;
+import android.widget.AdapterView;
 import android.widget.GridLayout;
+import android.widget.GridView;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 import com.bchay.wallpaper.database.Image;
 import com.bchay.wallpaper.database.ImageDatabaseInstance;
 import com.squareup.picasso.Picasso;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
     public static final int GET_IMAGES = 0;
-    GridLayout grid;
+    GridView gridView;
+    ImageAdapter adapter;
+    List<Image> images;
+    ActionMode actionMode;
+    List<Uri> selected = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        grid = findViewById(R.id.photos_grid);
+        PreferenceManager.setDefaultValues(this, R.xml.preferences, false);
 
-        BottomNavigationView navigation = findViewById(R.id.navigation);
-        navigation.setOnNavigationItemSelectedListener(mOnNavigationItemSelectedListener);
-
-
+        gridView = findViewById(R.id.photos_grid);
 
         ImageDatabaseInstance.createDatabase(this);
 
         new Thread(new Runnable() {
             @Override
             public void run() {
-                List<Image> images = ImageDatabaseInstance.getAllImages();
-
-                for(Image image : images) {
-                    addImageToGrid(image.uri);
-                }
+                images = ImageDatabaseInstance.getAllImages();
+                adapter = new ImageAdapter(images, getApplicationContext());
+                gridView.setAdapter(adapter);
+                registerForContextMenu(gridView);
             }
         }).start();
+
+        gridView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+                if(actionMode == null) {
+                    Intent intent = new Intent(getApplicationContext(), ImageSettings.class);
+                    intent.putExtra("uri", (Uri) view.getTag());
+                    startActivity(intent);
+                } else { //Context Action Bar is currently set
+                    Uri uri = (Uri) view.getTag();
+                    if(selected.contains(uri)) {
+                        selected.remove(uri);
+                        ((ImageView) view).setColorFilter(null);
+
+                        if(selected.size() == 0) actionMode.finish();
+                    } else {
+                        selected.add(uri);
+                        ((ImageView) view).setColorFilter(Color.argb(150, 255, 255, 255));
+                    }
+
+                    //Action mode is null if selected.size() == 0
+                    if(actionMode != null) actionMode.setTitle(selected.size() + " Image" + (selected.size() == 1 ? "" : "s") + " Selected");
+                }
+            }
+        });
     }
 
-    private BottomNavigationView.OnNavigationItemSelectedListener mOnNavigationItemSelectedListener = new BottomNavigationView.OnNavigationItemSelectedListener() {
+    private ActionMode.Callback actionModeCallback = new ActionMode.Callback() {
         @Override
-        public boolean onNavigationItemSelected(@NonNull MenuItem item) {
-            switch (item.getItemId()) {
-                case R.id.navigation_home:
-                    return true;
-                case R.id.navigation_settings:
-                    return true;
-            }
+        public boolean onCreateActionMode(ActionMode mode, Menu menu) {
+            MenuInflater inflater = mode.getMenuInflater();
+            inflater.inflate(R.menu.home_cab, menu);
+            return true;
+        }
+
+        @Override
+        public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
             return false;
         }
+
+        @Override
+        public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
+            switch (item.getItemId()) {
+                case R.id.delete_cab:
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            for(Uri uri : selected) {
+                                ImageDatabaseInstance.deleteImages(uri);
+                            }
+                        }
+                    }).start();
+
+                    for(Uri uri : selected) {
+                        Iterator<Image> iterator = images.iterator();
+                        while(iterator.hasNext()) {
+                            if(iterator.next().uri.equals(uri)) {
+                                iterator.remove();
+                            }
+                        }
+                    }
+
+                    adapter = new ImageAdapter(images, getApplicationContext());
+                    gridView.setAdapter(adapter);
+                    mode.finish();
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        @Override
+        public void onDestroyActionMode(ActionMode mode) {
+            actionMode = null;
+
+            for(int i = 0; i < gridView.getChildCount(); i++) {
+                ImageView view = (ImageView) gridView.getChildAt(i);
+
+                view.setSelected(false);
+                view.setColorFilter(null);
+            }
+
+            selected = new ArrayList<>();
+        }
     };
+
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.home_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle item selection
+        switch (item.getItemId()) {
+            case R.id.navigation_home:
+                return true;
+            case R.id.navigation_settings:
+                Intent intent = new Intent(getApplicationContext(), SettingsActivity.class);
+                startActivity(intent);
+                return true;
+            case R.id.navigation_delete:
+                if(actionMode == null) {
+                    actionMode = startActionMode(actionModeCallback);
+                }
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
 
     public void selectImage(View view) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -79,13 +192,11 @@ public class MainActivity extends AppCompatActivity {
                     Uri uri = intent.getClipData().getItemAt(i).getUri();
                     if (uri != null) {
                         images[i] = new Image(uri, "Stretch", "Span All Screens");
-                        addImageToGrid(uri);
                     }
                 }
             } else {
                 images = new Image[1];
                 images[0] = new Image(intent.getData(), "Stretch", "Span All Screens");
-                addImageToGrid(intent.getData());
             }
 
             new Thread(new Runnable() {
@@ -94,53 +205,81 @@ public class MainActivity extends AppCompatActivity {
                     ImageDatabaseInstance.insertImage(images);
                 }
             }).start();
+
+            for(Image image : images) {
+                boolean unique = true;
+                for(Image img : this.images) {
+                    if(image.uri.equals(img.uri)) {
+                        unique = false;
+                        break;
+                    }
+                }
+
+                if(unique) this.images.add(image);
+            }
+
+            adapter = new ImageAdapter(this.images, getApplicationContext());
+            gridView.setAdapter(adapter);
         }
     }
 
-    private void addImageToGrid(final Uri uri) {
-        final ImageView imageView = new ImageView(this);
+    public void onCreateContextMenu(ContextMenu menu, View view, ContextMenu.ContextMenuInfo menuInfo) {
+        super.onCreateContextMenu(menu, view, menuInfo);
 
-        GridLayout.LayoutParams params = new GridLayout.LayoutParams();
-        params.width = 450;
-        params.height = 450;
-        params.setMargins(10, 10, 10, 10);
-        imageView.setLayoutParams(params);
-        imageView.setLongClickable(true);
+        if(actionMode == null) {
+            MenuInflater inflater = getMenuInflater();
+            inflater.inflate(R.menu.image_context_menu, menu);
+        }
+    }
 
-        imageView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Intent intent = new Intent(MainActivity.this, ImageSettings.class);
-                intent.putExtra("uri", uri);
-                startActivity(intent);
-            }
-        });
+    public boolean onContextItemSelected(MenuItem item) {
+        AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) item.getMenuInfo();
 
-        imageView.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View view) {
-                //Context menu
-                //Delete
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        ImageDatabaseInstance.deleteImages(uri);
-                    }
-                }).start();
-
-                grid.removeView(view);
+        switch (item.getItemId()) {
+            case R.id.set_as_wallpaper:
+                setAsWallpaper(info.targetView);
                 return true;
-            }
-        });
+            case R.id.delete_image:
+                deleteImage(info.targetView);
+                return true;
+            default:
+                return super.onContextItemSelected(item);
+        }
+    }
 
-       MainActivity.this.runOnUiThread(new Runnable() {
+    public void setAsWallpaper(View view) {
+        ImageView image = (ImageView) view;
+        final Uri uri = (Uri) image.getTag();
+
+        new Thread(new Runnable() {
             @Override
             public void run() {
-                final int takeFlags = (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-                getContentResolver().takePersistableUriPermission(uri, takeFlags);
-                Picasso.with(MainActivity.this).load(uri).resize(450, 0).into(imageView);
-                grid.addView(imageView);
+                Image image = ImageDatabaseInstance.getImage(uri).get(0);
+                new ImageSettings().setImageAsWallpaper(image.uri, image.cropType, image.screenSpan);
             }
-        });
+        }).start();
+    }
+
+    public void deleteImage(View view) {
+        ImageView image = (ImageView) view;
+        final Uri uri = (Uri) image.getTag();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                ImageDatabaseInstance.deleteImages(uri);
+            }
+        }).start();
+
+
+        Iterator<Image> iterator = images.listIterator();
+        while(iterator.hasNext()) {
+            if(iterator.next().uri.equals(uri)) {
+                iterator.remove();
+            }
+        }
+
+        adapter = new ImageAdapter(images, getApplicationContext());
+        gridView.setAdapter(adapter);
     }
 }
